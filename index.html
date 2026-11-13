@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Events Team Pulse – Monthly Performance Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Libraries (CDN – works on GitHub Pages) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <!-- Put your company logo file at assets/logo.png (or .svg and change the src). Hidden automatically if missing. -->
+      <img src="assets/logo.png" alt="Company logo" class="brand-logo" onerror="this.style.display='none'" />
+      <div class="brand-text">
+        <strong id="brandTitle">Events Team</strong>
+        <span>Team Pulse Dashboard</span>
+      </div>
+    </div>
+    <nav class="nav">
+      <button class="nav-item active" data-view="overview">📊 <span>Main Dashboard</span></button>
+      <button class="nav-item" data-view="monthly">📅 <span>Monthly Deliverable</span></button>
+      <button class="nav-item" data-view="weekly">📈 <span>Weekly Trend</span></button>
+      <button class="nav-item" data-view="leaderboard">🏆 <span>Performance Leaderboard</span></button>
+      <button class="nav-item" data-view="knowledge">💡 <span>Knowledge Sharing</span></button>
+      <button class="nav-item" data-view="operational">🛠️ <span>Operational Updates</span></button>
+      <button class="nav-item" data-view="award">⭐ <span>Star of the Month</span></button>
+      <button class="nav-item" data-view="data">🗂️ <span>Data Editor</span></button>
+    </nav>
+    <div class="sidebar-foot">
+      <small>Data source: uploaded CSV / Excel<br/>Edits are saved in your browser.</small>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <header class="topbar">
+      <h1 id="viewTitle">Main Dashboard</h1>
+      <div class="controls">
+        <label>Month
+          <select id="monthSelect"></select>
+        </label>
+        <label>Employee
+          <select id="memberSelect"></select>
+        </label>
+        <button class="btn" id="uploadBtn">⬆ Upload CSV / Excel</button>
+        <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" hidden />
+        <button class="btn btn-accent" id="exportBtn">⬇ Export Excel</button>
+        <button class="btn btn-ghost" id="templateBtn" title="Download a blank/sample CSV template">Template</button>
+        <button class="btn btn-ghost" id="liveBtn" title="Connect Google Sheets for live data">🔗 Live Sync</button>
+        <button class="btn btn-ghost" id="themeBtn" title="Toggle dark / light">🌓</button>
+        <span id="liveStatus" class="pill">Local data</span>
+      </div>
+    </header>
+
+    <div id="toast" class="toast"></div>
+
+    <!-- Live Sync panel -->
+    <div class="card" id="syncPanel" hidden>
+      <h3>Live Sync with Google Sheets</h3>
+      <p class="muted">Create a Google Sheet with 3 tabs, then paste each tab's link below (File → Share → Publish to web → choose the tab → CSV, or paste a normal share link ending in <code>?gid=…</code>). The dashboard re-reads the sheet automatically.<br/>
+      <b>Data tab headers:</b> Month, Week, Member, Category, Generated, Completed, Rejected, Quality, Efficiency, UniqueFeed<br/>
+      <b>Knowledge tab headers:</b> Date, Presenter, Topic, Queue, Notes &nbsp;·&nbsp; <b>Operational tab headers:</b> Date, Owner, Update, Impact, Status</p>
+      <div class="sync-grid">
+        <label>Production data tab link<input type="text" id="liveData" placeholder="https://docs.google.com/spreadsheets/d/…" /></label>
+        <label>Knowledge Sharing tab link (optional)<input type="text" id="liveKnowledge" placeholder="https://docs.google.com/spreadsheets/d/…" /></label>
+        <label>Operational Updates tab link (optional)<input type="text" id="liveOperational" placeholder="https://docs.google.com/spreadsheets/d/…" /></label>
+        <label>Refresh every (seconds, min 15)<input type="number" id="liveRefresh" value="60" min="15" /></label>
+      </div>
+      <p><button class="btn" id="liveSave">Save &amp; Sync now</button>
+      <button class="btn btn-ghost" id="liveOff">Disconnect</button></p>
+      <p class="muted">Links saved here apply to this browser only. To make the whole team see live data, paste the links into <code>CONFIG.live</code> at the top of script.js and re-upload it to GitHub.</p>
+    </div>
+
+    <!-- ========== OVERVIEW ========== -->
+    <section class="view active" id="view-overview">
+      <div class="kpi-grid" id="kpiGrid"></div>
+      <div class="grid-2">
+        <div class="card"><h3>Generated vs Completed vs Rejected</h3><div class="chart-box"><canvas id="chGCR"></canvas></div></div>
+        <div class="card"><h3>Efficiency vs Quality (%)</h3><div class="chart-box"><canvas id="chEQ"></canvas></div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card"><h3>Individual Productivity (Completed)</h3><div class="chart-box"><canvas id="chProd"></canvas></div></div>
+        <div class="card"><h3>Unique Feed Contribution</h3><div class="chart-box"><canvas id="chUnique"></canvas></div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card"><h3>Completion by Category</h3><div class="chart-box"><canvas id="chCatDonut"></canvas></div></div>
+        <div class="card"><h3>Overall Completion vs Rejection</h3><div class="chart-box"><canvas id="chRate"></canvas></div></div>
+      </div>
+    </section>
+
+    <!-- ========== MONTHLY ========== -->
+    <section class="view" id="view-monthly">
+      <div class="grid-2">
+        <div class="card"><h3>Category Deliverables (selected month)</h3><div class="chart-box"><canvas id="chCat"></canvas></div></div>
+        <div class="card"><h3>Monthly Comparison</h3><div class="chart-box"><canvas id="chMonthCmp"></canvas></div></div>
+      </div>
+      <div class="card">
+        <h3>Individual Contribution in Each Queue (Completed)</h3>
+        <div class="table-wrap"><table id="matrixTable"></table></div>
+      </div>
+      <div class="card">
+        <h3>Category Summary</h3>
+        <div class="table-wrap"><table id="catTable"></table></div>
+      </div>
+    </section>
+
+    <!-- ========== WEEKLY ========== -->
+    <section class="view" id="view-weekly">
+      <div class="grid-2">
+        <div class="card"><h3>Weekly Team Productivity</h3><div class="chart-box"><canvas id="chWeekTeam"></canvas></div></div>
+        <div class="card"><h3>Weekly Efficiency &amp; Quality</h3><div class="chart-box"><canvas id="chWeekEQ"></canvas></div></div>
+      </div>
+      <div class="card"><h3>Weekly Completed by Member</h3><div class="chart-box tall"><canvas id="chWeekMember"></canvas></div></div>
+      <div class="card"><h3>Weekly Table</h3><div class="table-wrap"><table id="weekTable"></table></div></div>
+    </section>
+
+    <!-- ========== LEADERBOARD ========== -->
+    <section class="view" id="view-leaderboard">
+      <div class="card">
+        <h3>Monthly Leaderboard <small class="muted" id="scoreNote"></small></h3>
+        <div class="table-wrap"><table id="lbTable"></table></div>
+      </div>
+      <div class="card"><h3>Score Comparison</h3><div class="chart-box"><canvas id="chScore"></canvas></div></div>
+    </section>
+
+    <!-- ========== KNOWLEDGE ========== -->
+    <section class="view" id="view-knowledge">
+      <div class="card">
+        <h3>Team's Knowledge Sharing <button class="btn btn-sm" data-add="knowledge">+ Add entry</button></h3>
+        <p class="muted">Edit any cell – changes save automatically in this browser. Entries are listed per month.</p>
+        <div class="table-wrap"><table id="knowledgeTable"></table></div>
+      </div>
+    </section>
+
+    <!-- ========== OPERATIONAL ========== -->
+    <section class="view" id="view-operational">
+      <div class="card">
+        <h3>Operational Updates of the Month <button class="btn btn-sm" data-add="operational">+ Add update</button></h3>
+        <p class="muted">Process changes, tool issues, guideline updates, announcements, etc.</p>
+        <div class="table-wrap"><table id="operationalTable"></table></div>
+      </div>
+    </section>
+
+    <!-- ========== AWARD ========== -->
+    <section class="view" id="view-award">
+      <div class="award-hero card" id="awardHero"></div>
+      <div class="podium" id="podium"></div>
+    </section>
+
+    <!-- ========== DATA EDITOR ========== -->
+    <section class="view" id="view-data">
+      <div class="card">
+        <h3>Data Editor
+          <span class="row-actions">
+            <button class="btn btn-sm" id="addRowBtn">+ Add row</button>
+            <button class="btn btn-sm btn-ghost" id="resetBtn">Reset to sample data</button>
+          </span>
+        </h3>
+        <p class="muted" id="dataNote"></p>
+        <div class="table-wrap tall-table"><table id="dataTable"></table></div>
+      </div>
+    </section>
+  </main>
+</div>
+<script src="script.js"></script>
+</body>
+</html>
